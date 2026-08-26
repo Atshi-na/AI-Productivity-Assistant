@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AnalysisProvider } from "../lib/analysis-store";
 import { AppLayout } from "../components/app-layout";
 import { Toaster } from "sonner";
+import { ThemeProvider, THEME_INIT_SCRIPT, useTheme } from "../lib/theme";
 
 function NotFoundComponent() {
   return (
@@ -120,6 +121,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
         {children}
@@ -129,18 +131,25 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster position="bottom-right" richColors theme={theme} />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AnalysisProvider>
-        <AppLayout>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AppLayout>
-        <Toaster position="bottom-right" richColors />
-      </AnalysisProvider>
+      <ThemeProvider>
+        <AnalysisProvider>
+          <AppLayout>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </AppLayout>
+          <ThemedToaster />
+        </AnalysisProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
