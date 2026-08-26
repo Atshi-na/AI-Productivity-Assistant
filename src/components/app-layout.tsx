@@ -102,17 +102,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <SidebarContent />
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card px-4 py-3 lg:hidden">
+      {/* App header (mobile + desktop) */}
+      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur lg:pl-72">
         <button
           type="button"
           aria-label="Open navigation"
           onClick={() => setMobileOpen(true)}
-          className="rounded-md border border-border p-2 text-foreground"
+          className="rounded-md border border-border p-2 text-foreground lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="text-sm font-semibold text-foreground">Meridian AI</span>
+        <span className="text-sm font-semibold text-foreground lg:hidden">Meridian AI</span>
+        <span className="hidden text-sm font-semibold text-foreground lg:inline">
+          AI-Powered Data &amp; Workplace Productivity Assistant
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* Mobile drawer */}
