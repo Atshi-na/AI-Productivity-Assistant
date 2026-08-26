@@ -104,7 +104,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* App header (mobile + desktop) */}
-      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur lg:pl-72">
+      <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-border bg-card/95 px-4 py-3 backdrop-blur lg:ml-64 lg:px-8">
         <button
           type="button"
           aria-label="Open navigation"
