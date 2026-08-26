@@ -97,6 +97,7 @@
   --sidebar-accent-foreground: oklch(0.985 0.003 255);
   --sidebar-border: oklch(0.3 0.03 260);
   --sidebar-ring: oklch(0.6 0.14 252);
+  --panel-shadow: oklch(0.24 0.03 262 / 0.05);
 }
 
 .dark {
@@ -136,11 +137,30 @@
   --sidebar-accent-foreground: oklch(0.95 0.008 255);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.6 0.13 252);
+  --panel-shadow: oklch(0 0 0 / 0.3);
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
+  }
+
+  html {
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  body,
+  .panel,
+  aside,
+  header,
+  input,
+  textarea,
+  select,
+  button {
+    transition:
+      background-color 200ms ease,
+      border-color 200ms ease,
+      color 200ms ease;
   }
 
   body {
@@ -165,8 +185,8 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-xl);
     box-shadow:
-      0 1px 2px 0 oklch(0.24 0.03 262 / 0.04),
-      0 1px 3px 0 oklch(0.24 0.03 262 / 0.03);
+      0 1px 2px 0 var(--panel-shadow),
+      0 1px 3px 0 var(--panel-shadow);
   }
 
   .panel-label {

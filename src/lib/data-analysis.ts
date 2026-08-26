@@ -41,6 +41,7 @@ export interface DatasetProfile {
   donut: ChartPoint[]; // share by second categorical
   donutLabel: string;
   summaryText: string; // compact factual summary sent to the AI
+  analystContext: string; // detailed, pre-computed facts for the data-aware assistant
 }
 
 const REVENUE_RE = /revenue|sales|amount|total|income/i;
@@ -239,6 +240,115 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     lines.push(`${donutLabel}: ${donut.map((d) => `${d.name}=${Math.round(d.value)}`).join(", ")}.`);
   }
 
+
+  // --- Detailed pre-computed facts for the data-aware assistant ----------------
+  const metricCols = [revenueCol, profitCol, qtyCol].filter(
+    (c, i, arr): c is string => Boolean(c) && arr.indexOf(c) === i,
+  );
+  const discountCol = numericCols.find((n) => /discount|rebate/i.test(n));
+
+  const monthKey = (raw: string): string | null => {
+    const t = Date.parse((raw ?? "").trim());
+    if (Number.isNaN(t)) return null;
+    const d = new Date(t);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+
+  const sumBy = (keyOf: (r: Record<string, string>) => string | null, metric: string) => {
+    const m = new Map<string, { sum: number; count: number }>();
+    for (const row of rows) {
+      const k = keyOf(row);
+      if (k === null) continue;
+      const v = Number(row[metric]);
+      const cur = m.get(k) ?? { sum: 0, count: 0 };
+      cur.sum += Number.isNaN(v) ? 0 : v;
+      cur.count += 1;
+      m.set(k, cur);
+    }
+    return m;
+  };
+
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const detail: string[] = [];
+  detail.push(`DATASET: "${name}" — ${rows.length} rows, ${headers.length} columns.`);
+  detail.push(
+    `COLUMNS: ${columns.map((c) => `${c.name} (${c.type}, ${c.unique} distinct values${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`,
+  );
+  detail.push(`DATA QUALITY: ${duplicateRows} duplicate rows, ${totalMissing} missing cells.`);
+  if (metricCols.length) {
+    detail.push(
+      `TOTALS: ${metricCols.map((mc) => `${mc} total=${round(sumOf(mc))}, average per row=${round(sumOf(mc) / rows.length)}`).join("; ")}.`,
+    );
+  }
+
+  // Monthly series per metric, with month-over-month change.
+  if (dateCol) {
+    for (const mc of metricCols) {
+      const monthly = [...sumBy((r) => monthKey(r[dateCol] ?? ""), mc).entries()].sort((a, b) =>
+        a[0].localeCompare(b[0]),
+      );
+      if (monthly.length < 2) continue;
+      detail.push(
+        `MONTHLY ${mc.toUpperCase()}: ${monthly.map(([k, v]) => `${k}=${round(v.sum)}`).join(", ")}.`,
+      );
+      const changes = monthly.slice(1).map(([k, v], i) => {
+        const prev = monthly[i]![1].sum;
+        const pct = prev === 0 ? null : ((v.sum - prev) / Math.abs(prev)) * 100;
+        return `${k}: ${v.sum - prev >= 0 ? "+" : ""}${round(v.sum - prev)}${pct === null ? "" : ` (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`} vs ${monthly[i]![0]}`;
+      });
+      detail.push(`MONTH-OVER-MONTH CHANGE IN ${mc.toUpperCase()}: ${changes.join("; ")}.`);
+      if (discountCol && mc === revenueCol) {
+        const disc = [...sumBy((r) => monthKey(r[dateCol] ?? ""), discountCol).entries()].sort((a, b) =>
+          a[0].localeCompare(b[0]),
+        );
+        detail.push(
+          `AVERAGE ${discountCol} BY MONTH: ${disc.map(([k, v]) => `${k}=${round(v.sum / Math.max(1, v.count))}`).join(", ")}.`,
+        );
+      }
+    }
+  }
+
+  // Every low-cardinality dimension broken down by every metric.
+  for (const cat of catCols.slice(0, 6)) {
+    for (const mc of metricCols) {
+      const entries = [...sumBy((r) => (r[cat.name] ?? "").trim() || "(missing)", mc).entries()]
+        .map(([k, v]) => ({ k, sum: round(v.sum), count: v.count }))
+        .sort((a, b) => b.sum - a.sum)
+        .slice(0, 20);
+      if (!entries.length) continue;
+      detail.push(
+        `${mc.toUpperCase()} BY ${cat.name.toUpperCase()}: ${entries.map((e) => `${e.k}=${e.sum} (${e.count} records)`).join(", ")}.`,
+      );
+    }
+  }
+
+  // Dimension x month grid for the primary metric — lets the assistant explain dips.
+  if (dateCol && revenueCol) {
+    for (const cat of catCols.slice(0, 3)) {
+      const grid = new Map<string, Map<string, number>>();
+      for (const row of rows) {
+        const mk = monthKey(row[dateCol] ?? "");
+        if (!mk) continue;
+        const k = (row[cat.name] ?? "").trim() || "(missing)";
+        const v = Number(row[revenueCol]);
+        const inner = grid.get(k) ?? new Map<string, number>();
+        inner.set(mk, (inner.get(mk) ?? 0) + (Number.isNaN(v) ? 0 : v));
+        grid.set(k, inner);
+      }
+      const lines2 = [...grid.entries()]
+        .slice(0, 12)
+        .map(
+          ([k, inner]) =>
+            `${k}: ${[...inner.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([m, v]) => `${m}=${round(v)}`).join(", ")}`,
+        );
+      if (lines2.length) {
+        detail.push(`MONTHLY ${revenueCol.toUpperCase()} BY ${cat.name.toUpperCase()} —\n${lines2.join("\n")}`);
+      }
+    }
+  }
+
+  const analystContext = detail.join("\n");
+
   return {
     name,
     rowCount: rows.length,
@@ -255,5 +365,6 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     donut,
     donutLabel,
     summaryText: lines.join("\n"),
+    analystContext,
   };
 }
