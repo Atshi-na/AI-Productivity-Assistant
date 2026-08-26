@@ -28,12 +28,14 @@ export const Route = createFileRoute("/assistant")({
 });
 
 const SUGGESTED = [
-  "What are the most important findings in my dataset?",
-  "Explain the current sales trend.",
-  "How should I present this analysis to my manager?",
+  "What was our total revenue?",
+  "Which region generated the most revenue?",
+  "What was our best-performing product last month?",
+  "Which product had the highest profit?",
+  "Which category performed the worst?",
+  "Why did revenue fall in the weakest month?",
+  "What are the most important findings in this dataset?",
   "What should management focus on?",
-  "Turn the top finding into an email to my manager.",
-  "Help me understand profit margin as a KPI.",
 ];
 
 function messageText(parts: Array<{ type: string; text?: string }>): string {
@@ -50,7 +52,7 @@ function AssistantPage() {
 
   const datasetContext = useMemo(() => {
     if (!dataset) return undefined;
-    let ctx = dataset.summaryText;
+    let ctx = dataset.analystContext || dataset.summaryText;
     if (insights.length) {
       ctx += `\n\nGenerated insights:\n${insights.map((i, n) => `${n + 1}. ${i.insight} (evidence: ${i.evidence})`).join("\n")}`;
     }
@@ -76,7 +78,7 @@ function AssistantPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] flex-col space-y-4 lg:h-[calc(100vh-5rem)]">
+    <div className="flex h-[calc(100vh-8.5rem)] flex-col space-y-4 lg:h-[calc(100vh-9rem)]">
       <PageHeader
         title="AI Assistant"
         description={

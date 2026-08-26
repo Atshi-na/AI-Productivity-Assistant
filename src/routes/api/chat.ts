@@ -9,8 +9,8 @@ export const Route = createFileRoute("/api/chat")({
         try {
           const body = (await request.json()) as { messages: UIMessage[]; datasetContext?: string };
           const system = body.datasetContext
-            ? `${PROMPTS.chat}\n\nThe user has loaded a dataset. Factual summary computed from the data:\n${body.datasetContext}\n\nGround every numerical claim about the dataset in these facts.`
-            : `${PROMPTS.chat}\n\nNo dataset is currently loaded. If the user asks about specific figures, note that no dataset has been uploaded yet and suggest loading one on the Data Analysis page.`;
+            ? `${PROMPTS.chat}\n\n=== DATASET FACTS (computed directly from the user's uploaded data — this is the only source of truth for numbers) ===\n${body.datasetContext}\n=== END OF DATASET FACTS ===\n\nAnswer dataset questions using these facts only. Do the comparisons and arithmetic yourself from these figures.`
+            : `${PROMPTS.chat}\n\nNo dataset is loaded right now. If the user asks about specific figures, say that no data has been loaded yet and suggest loading a dataset on the Data Analysis page. Never guess numbers.`;
 
           const gateway = getGateway();
           const result = streamText({
