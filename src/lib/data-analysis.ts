@@ -83,6 +83,7 @@ function normalizeText(value: string): string {
 }
 
 function singularizeToken(token: string): string {
+  if (token.endsWith("movies")) return token.slice(0, -1);
   if (token.endsWith("ies") && token.length > 4) return token.slice(0, -3) + "y";
   if (token.endsWith("ses") && token.length > 4) return token.slice(0, -2);
   if (token.endsWith("s") && token.length > 3 && !token.endsWith("ss")) return token.slice(0, -1);
