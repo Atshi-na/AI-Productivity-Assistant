@@ -6,8 +6,8 @@
 
 /*
  * Design system — "Meridian Analytics"
- * Professional enterprise analytics: cool slate neutrals, a confident
- * steel-blue primary, restrained elevation, IBM Plex typography.
+ * Professional enterprise analytics: clean white and soft lavender surfaces,
+ * a confident purple primary, restrained elevation, IBM Plex typography.
  */
 
 @theme inline {
@@ -61,43 +61,43 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.985 0.003 255);
-  --foreground: oklch(0.24 0.03 262);
+  --background: oklch(0.985 0.005 300);
+  --foreground: oklch(0.25 0.03 300);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.03 262);
+  --card-foreground: oklch(0.25 0.03 300);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.03 262);
-  --primary: oklch(0.5 0.15 252);
-  --primary-foreground: oklch(0.985 0.003 255);
-  --secondary: oklch(0.955 0.008 255);
-  --secondary-foreground: oklch(0.32 0.04 260);
-  --muted: oklch(0.96 0.006 255);
-  --muted-foreground: oklch(0.52 0.03 260);
-  --accent: oklch(0.945 0.018 252);
-  --accent-foreground: oklch(0.4 0.09 252);
-  --destructive: oklch(0.577 0.215 27);
-  --destructive-foreground: oklch(0.985 0.003 255);
-  --border: oklch(0.915 0.008 255);
-  --input: oklch(0.9 0.01 255);
-  --ring: oklch(0.5 0.15 252);
+  --popover-foreground: oklch(0.25 0.03 300);
+  --primary: oklch(0.6 0.18 300);
+  --primary-foreground: oklch(0.985 0.005 300);
+  --secondary: oklch(0.94 0.02 300);
+  --secondary-foreground: oklch(0.35 0.05 300);
+  --muted: oklch(0.93 0.015 300);
+  --muted-foreground: oklch(0.55 0.04 300);
+  --accent: oklch(0.92 0.03 300);
+  --accent-foreground: oklch(0.4 0.08 300);
+  --destructive: oklch(0.58 0.2 25);
+  --destructive-foreground: oklch(0.985 0.005 300);
+  --border: oklch(0.88 0.02 300);
+  --input: oklch(0.9 0.015 300);
+  --ring: oklch(0.6 0.18 300);
   --success: oklch(0.62 0.14 165);
-  --success-foreground: oklch(0.985 0.003 255);
+  --success-foreground: oklch(0.985 0.005 300);
   --warning: oklch(0.72 0.15 75);
   --warning-foreground: oklch(0.28 0.05 70);
-  --chart-1: oklch(0.5 0.15 252);
-  --chart-2: oklch(0.62 0.12 200);
-  --chart-3: oklch(0.6 0.14 160);
-  --chart-4: oklch(0.68 0.14 75);
-  --chart-5: oklch(0.58 0.18 305);
-  --sidebar: oklch(0.2 0.025 262);
-  --sidebar-foreground: oklch(0.9 0.01 255);
-  --sidebar-primary: oklch(0.6 0.14 252);
-  --sidebar-primary-foreground: oklch(0.985 0.003 255);
-  --sidebar-accent: oklch(0.27 0.03 260);
-  --sidebar-accent-foreground: oklch(0.985 0.003 255);
-  --sidebar-border: oklch(0.3 0.03 260);
-  --sidebar-ring: oklch(0.6 0.14 252);
-  --panel-shadow: oklch(0.24 0.03 262 / 0.05);
+  --chart-1: oklch(0.6 0.18 300);
+  --chart-2: oklch(0.65 0.15 270);
+  --chart-3: oklch(0.7 0.14 330);
+  --chart-4: oklch(0.62 0.16 260);
+  --chart-5: oklch(0.72 0.13 340);
+  --sidebar: oklch(0.97 0.015 300);
+  --sidebar-foreground: oklch(0.35 0.05 300);
+  --sidebar-primary: oklch(0.6 0.18 300);
+  --sidebar-primary-foreground: oklch(0.985 0.005 300);
+  --sidebar-accent: oklch(0.92 0.03 300);
+  --sidebar-accent-foreground: oklch(0.35 0.05 300);
+  --sidebar-border: oklch(0.88 0.02 300);
+  --sidebar-ring: oklch(0.6 0.18 300);
+  --panel-shadow: oklch(0.25 0.03 300 / 0.05);
 }
 
 .dark {
