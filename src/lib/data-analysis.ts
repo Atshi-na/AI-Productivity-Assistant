@@ -151,7 +151,7 @@ interface QuestionFilter {
   label: string;
 }
 
-interface CalculationResult {
+export interface CalculationResult {
   status: "answered" | "unavailable";
   answer: string;
   method: string;
@@ -319,6 +319,8 @@ export function calculateDatasetAnswer(question: string, dataset: DatasetProfile
   const asksCount = /\b(how many|count|number of|total records|total rows)\b/i.test(q);
   const asksSum = /\b(sum|total|generated)\b/i.test(q) && !asksCount && !asksPercentage;
   const asksRank = /\b(which|what)\b/i.test(q) && /\b(most|highest|top|best|least|lowest|fewest|worst)\b/i.test(q);
+  const asksMinimum = /\b(min|minimum|smallest|lowest)\b/i.test(q) && !asksRank;
+  const asksMaximum = /\b(max|maximum|largest|highest)\b/i.test(q) && !asksRank;
   const wantsLow = /\b(least|lowest|fewest|worst)\b/i.test(q);
 
   if (asksPercentage) {
@@ -368,6 +370,34 @@ export function calculateDatasetAnswer(question: string, dataset: DatasetProfile
       method: `Filtered by ${filterText}, extracted ${values.length} usable numeric value${values.length === 1 ? "" : "s"} from ${metric.column}, ignored missing or non-matching values, then calculated the mean.`,
       evidence: [`Rows after filter: ${filteredRows.length}`, `Values used: ${values.length}`, `Average: ${fmtAnswerNumber(avg)}${unit}`],
       validation: "Only values from the requested column and matching rows were used.",
+    });
+  }
+
+  if (asksMinimum || asksMaximum) {
+    const metric = detectMetricColumn(question, dataset);
+    if (!metric) {
+      return unavailable(
+        `I could not calculate the ${asksMinimum ? "minimum" : "maximum"} because I could not find the requested numeric column.`,
+        "Looked for a numeric or duration-like column mentioned in the question.",
+        [`Available columns: ${dataset.columns.map((c) => `${c.name} (${c.type})`).join(", ")}`],
+      );
+    }
+    const values = numericValues(filteredRows, metric.column, question, filters);
+    if (!values.length) {
+      return unavailable(
+        `I could not calculate the ${asksMinimum ? "minimum" : "maximum"} ${metric.column} because there are no usable numeric values after applying the filters.`,
+        `Filtered by ${filterText}, then tried to extract numeric values from ${metric.column}.`,
+        [`Rows after filter: ${filteredRows.length}`, "Usable numeric values: 0"],
+      );
+    }
+    const value = asksMinimum ? Math.min(...values) : Math.max(...values);
+    const unit = metric.unit ? ` ${metric.unit}` : "";
+    return makeCalculationResult({
+      status: "answered",
+      answer: `The ${asksMinimum ? "minimum" : "maximum"} ${metric.column} is ${fmtAnswerNumber(value)}${unit}.`,
+      method: `Filtered by ${filterText}, extracted ${values.length} usable values from ${metric.column}, then selected the ${asksMinimum ? "smallest" : "largest"} value.`,
+      evidence: [`Rows after filter: ${filteredRows.length}`, `Values compared: ${values.length}`, `Result: ${fmtAnswerNumber(value)}${unit}`],
+      validation: "Only usable values from the requested column and matching rows were compared.",
     });
   }
 
@@ -563,8 +593,7 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     if (trend.length >= 2) {
       const firstPoint = trend[0];
       const lastPoint = trend[trend.length - 1];
-      if (!firstPoint || !lastPoint) return;
-      if (firstPoint.value !== 0) {
+      if (firstPoint && lastPoint && firstPoint.value !== 0) {
         const growth = ((lastPoint.value - firstPoint.value) / firstPoint.value) * 100;
         kpis.push({
           label: "Growth Rate",

@@ -7,9 +7,17 @@ export const Route = createFileRoute("/api/chat")({
     handlers: {
       POST: async ({ request }) => {
         try {
-          const body = (await request.json()) as { messages: UIMessage[]; datasetContext?: string };
+          const body = (await request.json()) as {
+            messages: UIMessage[];
+            datasetContext?: string;
+            calculationContext?: string;
+          };
           const system = body.datasetContext
-            ? `${PROMPTS.chat}\n\n=== DATASET FACTS (computed directly from the user's uploaded data — this is the only source of truth for numbers) ===\n${body.datasetContext}\n=== END OF DATASET FACTS ===\n\nAnswer dataset questions using these facts only. Do the comparisons and arithmetic yourself from these figures.`
+            ? `${PROMPTS.chat}\n\n=== DATASET PROFILE ===\n${body.datasetContext}\n=== END OF DATASET PROFILE ===${
+                body.calculationContext
+                  ? `\n\n=== VERIFIED CALCULATION FOR THE CURRENT QUESTION ===\n${body.calculationContext}\n=== END OF VERIFIED CALCULATION ===\n\nUse the verified calculation as the source of truth. State its direct answer first, then briefly explain the calculation method. Do not change, recalculate, or contradict its figures.`
+                  : "\n\nNo deterministic calculation was produced for this question. Use the dataset profile only for qualitative or already-supported questions, and never invent missing figures."
+              }`
             : `${PROMPTS.chat}\n\nNo dataset is loaded right now. If the user asks about specific figures, say that no data has been loaded yet and suggest loading a dataset on the Data Analysis page. Never guess numbers.`;
 
           const gateway = getGateway();
