@@ -5,6 +5,7 @@ import { DefaultChatTransport } from "ai";
 import ReactMarkdown from "react-markdown";
 import { Bot, Eraser, Loader2, Send, User } from "lucide-react";
 import { useAnalysis } from "@/lib/analysis-store";
+import { calculateDatasetAnswer } from "@/lib/data-analysis";
 import { CopyButton, ErrorAlert, PageHeader, Panel } from "@/components/ui-bits";
 
 export const Route = createFileRoute("/assistant")({
@@ -67,8 +68,9 @@ function AssistantPage() {
   const submit = (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
+    const calculationContext = dataset ? calculateDatasetAnswer(trimmed, dataset)?.promptContext : undefined;
     setInput("");
-    sendMessage({ text: trimmed }, { body: { datasetContext } });
+    sendMessage({ text: trimmed }, { body: { datasetContext, calculationContext } });
     setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }), 100);
   };
 
