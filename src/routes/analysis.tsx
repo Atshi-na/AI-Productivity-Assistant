@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useAnalysis } from "@/lib/analysis-store";
 import { profileCsv, type DatasetProfile } from "@/lib/data-analysis";
 import { generateSampleDataset, sampleDatasetToCsv } from "@/lib/sample-data";
-import { generateInsightsFn } from "@/lib/ai.functions";
+import { generateInsightsFn, type InsightStatus } from "@/lib/ai.functions";
 import { BarsChart, DonutChart, TrendChart } from "@/components/charts";
 import { AiNote, EmptyState, ErrorAlert, LoadingBlock, PageHeader, Panel } from "@/components/ui-bits";
 
