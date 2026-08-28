@@ -2,10 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { aiJson, PROMPTS } from "./ai.server";
 
+export type InsightStatus = "Stable" | "Needs Attention" | "High Priority";
+
 export interface Insight {
   insight: string;
+  /** "What the data shows" — plain-English supporting numbers. */
   evidence: string;
+  /** "Why it matters" — plain-English business meaning. */
   impact: string;
+  /** "Recommendation" — one practical next step. */
+  recommendation?: string;
+  status?: InsightStatus;
 }
 
 export interface Recommendation {

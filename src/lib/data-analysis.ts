@@ -636,23 +636,108 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   const donutLabel = donutCol && revenueCol ? `${revenueCol} share by ${donutCol.name}` : "";
 
   // --- Compact factual summary for the AI --------------------------------------
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+
+  /** Values of a numeric column that are usable numbers. */
+  const numericValues = (col: string): number[] => {
+    const out: number[] = [];
+    for (const row of rows) {
+      const v = Number(cleanValue(row[col]));
+      if (cleanValue(row[col]) !== "" && !Number.isNaN(v)) out.push(v);
+    }
+    return out;
+  };
+
+  /**
+   * Year-like / identifier-like numeric columns must never be summed — a "sum of
+   * release years" is meaningless. They are described with counts and ranges.
+   */
+  const isYearLike = (col: string): boolean => {
+    if (/year/i.test(col)) return true;
+    const vals = numericValues(col);
+    if (!vals.length) return false;
+    return vals.every((v) => Number.isInteger(v) && v >= 1800 && v <= 2200);
+  };
+  const isIdLike = (col: string): boolean =>
+    /(^|[_\s-])(id|code|zip|postal|phone)([_\s-]|$)/i.test(col) ||
+    columns.find((c) => c.name === col)?.unique === rows.length;
+
   const lines: string[] = [];
   lines.push(`Dataset "${name}": ${rows.length} rows, ${headers.length} columns.`);
   lines.push(`Columns: ${columns.map((c) => `${c.name} (${c.type}${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`);
-  lines.push(`Duplicate rows: ${duplicateRows}. Total missing cells: ${totalMissing}.`);
+  lines.push(
+    `Data completeness: ${duplicateRows} duplicate rows (${r2((duplicateRows / Math.max(1, rows.length)) * 100)}% of rows), ${totalMissing} missing cells (${r2((totalMissing / Math.max(1, rows.length * Math.max(1, headers.length))) * 100)}% of all cells).`,
+  );
+
   for (const n of numericCols) {
-    lines.push(`Sum of ${n}: ${Math.round(sumOf(n) * 100) / 100}; average per row: ${Math.round((sumOf(n) / rows.length) * 100) / 100}.`);
+    const vals = numericValues(n);
+    if (!vals.length) continue;
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
+    const sorted = [...vals].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)] ?? avg;
+    if (isYearLike(n) || isIdLike(n)) {
+      // Counts per value (top years / most frequent values) — never a sum.
+      const counts = new Map<number, number>();
+      for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+      const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+      lines.push(
+        `${n} (year/identifier column — do NOT sum it): ranges from ${min} to ${max}; ${counts.size} distinct values; most frequent: ${top
+          .map(([v, c]) => `${v} with ${c} records (${r2((c / vals.length) * 100)}% of records)`)
+          .join(", ")}.`,
+      );
+    } else {
+      lines.push(
+        `${n}: total ${r2(vals.reduce((s, v) => s + v, 0))}; average ${r2(avg)}; median ${r2(median)}; lowest ${r2(min)}; highest ${r2(max)}; ${vals.length} of ${rows.length} records have a value.`,
+      );
+    }
   }
+
+  // Category breakdowns as counts + share of records (easy to read, no jargon).
+  for (const c of catCols.slice(0, 4)) {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      const k = cleanValue(row[c.name]) || "(missing)";
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    lines.push(
+      `Records by ${c.name}: ${top
+        .map(([k, n]) => `${k} = ${n} records (${r2((n / rows.length) * 100)}%)`)
+        .join(", ")}${counts.size > top.length ? `, plus ${counts.size - top.length} other values` : ""}.`,
+    );
+  }
+
   if (trend.length >= 2) {
+    const firstPoint = trend[0]!;
+    const lastPoint = trend[trend.length - 1]!;
+    const change =
+      firstPoint.value === 0 ? null : ((lastPoint.value - firstPoint.value) / Math.abs(firstPoint.value)) * 100;
     lines.push(
       `Monthly ${revenueCol}: ${trend.map((t) => `${t.name}=${Math.round(t.value)}`).join(", ")}.`,
     );
+    lines.push(
+      `Trend for ${revenueCol}: ${firstPoint.name} = ${Math.round(firstPoint.value)} vs ${lastPoint.name} = ${Math.round(lastPoint.value)}${
+        change === null ? "" : ` (${change >= 0 ? "up" : "down"} ${r2(Math.abs(change))}%)`
+      }.`,
+    );
   }
   if (bars.length) {
-    lines.push(`${barsLabel}: ${bars.map((b) => `${b.name}=${Math.round(b.value)}`).join(", ")}.`);
+    const totalBars = bars.reduce((s, b) => s + b.value, 0);
+    lines.push(
+      `${barsLabel}: ${bars
+        .map((b) => `${b.name}=${Math.round(b.value)}${totalBars ? ` (${r2((b.value / totalBars) * 100)}% of total)` : ""}`)
+        .join(", ")}.`,
+    );
   }
   if (donut.length && donutLabel !== barsLabel) {
-    lines.push(`${donutLabel}: ${donut.map((d) => `${d.name}=${Math.round(d.value)}`).join(", ")}.`);
+    const totalDonut = donut.reduce((s, d) => s + d.value, 0);
+    lines.push(
+      `${donutLabel}: ${donut
+        .map((d) => `${d.name}=${Math.round(d.value)}${totalDonut ? ` (${r2((d.value / totalDonut) * 100)}%)` : ""}`)
+        .join(", ")}.`,
+    );
   }
 
 
