@@ -252,16 +252,25 @@ function DataAnalysisPage() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {insights.map((ins, i) => (
                     <article key={i} className="rounded-lg border border-border bg-muted/30 p-4">
-                      <p className="text-sm font-semibold text-foreground">{ins.insight}</p>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">{ins.insight}</p>
+                        <StatusBadge status={ins.status} />
+                      </div>
                       <div className="mt-3 space-y-2">
                         <div>
-                          <p className="panel-label mb-1">Evidence</p>
+                          <p className="panel-label mb-1">What the data shows</p>
                           <p className="text-xs leading-relaxed text-muted-foreground">{ins.evidence}</p>
                         </div>
                         <div>
-                          <p className="panel-label mb-1">Business impact</p>
+                          <p className="panel-label mb-1">Why it matters</p>
                           <p className="text-xs leading-relaxed text-muted-foreground">{ins.impact}</p>
                         </div>
+                        {ins.recommendation ? (
+                          <div>
+                            <p className="panel-label mb-1">Recommendation</p>
+                            <p className="text-xs leading-relaxed text-muted-foreground">{ins.recommendation}</p>
+                          </div>
+                        ) : null}
                       </div>
                     </article>
                   ))}
