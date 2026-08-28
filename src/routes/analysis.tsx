@@ -286,7 +286,7 @@ function DataAnalysisPage() {
 }
 
 /** Three plain-English insight statuses only. */
-function StatusBadge({ status }: { status?: InsightStatus }) {
+function StatusBadge({ status }: { status?: InsightStatus | undefined }) {
   const resolved: InsightStatus =
     status === "High Priority" || status === "Needs Attention" ? status : "Stable";
   const styles: Record<InsightStatus, string> = {
