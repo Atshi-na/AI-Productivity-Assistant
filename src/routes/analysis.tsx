@@ -285,6 +285,28 @@ function DataAnalysisPage() {
   );
 }
 
+/** Three plain-English insight statuses only. */
+function StatusBadge({ status }: { status?: InsightStatus }) {
+  const resolved: InsightStatus =
+    status === "High Priority" || status === "Needs Attention" ? status : "Stable";
+  const styles: Record<InsightStatus, string> = {
+    Stable: "bg-success/10 text-success",
+    "Needs Attention": "bg-warning/20 text-warning-foreground",
+    "High Priority": "bg-destructive/10 text-destructive",
+  };
+  const dot: Record<InsightStatus, string> = {
+    Stable: "🟢",
+    "Needs Attention": "🟡",
+    "High Priority": "🔴",
+  };
+  return (
+    <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${styles[resolved]}`}>
+      {dot[resolved]} {resolved}
+    </span>
+  );
+}
+
+
 function OverviewStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
