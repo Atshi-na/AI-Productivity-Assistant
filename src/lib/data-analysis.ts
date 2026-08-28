@@ -558,12 +558,40 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
 
   // --- KPIs ------------------------------------------------------------------
   const kpis: Kpi[] = [];
+
+  /**
+   * If the dataset has a low-cardinality "type"/"category" column (e.g. Netflix's
+   * `type` with Movie / TV Show), show a live count per value. Counts are always
+   * derived from the currently loaded rows — never hardcoded.
+   */
+  const typeCol = columns.find(
+    (c) => c.type === "string" && /^(type|content[_\s-]?type|kind|media[_\s-]?type)$/i.test(c.name) && c.unique >= 2 && c.unique <= 6,
+  );
+  if (typeCol) {
+    const typeCounts = new Map<string, number>();
+    for (const row of rows) {
+      const v = cleanValue(row[typeCol.name]);
+      if (!v) continue;
+      typeCounts.set(v, (typeCounts.get(v) ?? 0) + 1);
+    }
+    const ordered = [...typeCounts.entries()].sort((a, b) => b[1] - a[1]);
+    for (const [label, count] of ordered) {
+      kpis.push({
+        label: `${label}${/s$/i.test(label) ? "" : "s"}`,
+        value: fmtNum(count),
+        detail: `${Math.round((count / rows.length) * 1000) / 10}% of records`,
+      });
+    }
+    kpis.push({ label: "Total Records", value: fmtNum(rows.length) });
+  }
+
   if (revenueCol) {
     kpis.push({ label: `Total ${revenueCol}`, value: fmtMoney(sumOf(revenueCol)) });
     kpis.push({ label: `Average ${revenueCol}`, value: fmtMoney(sumOf(revenueCol) / rows.length), detail: "per record" });
   }
   if (qtyCol) kpis.push({ label: `Total ${qtyCol}`, value: fmtNum(sumOf(qtyCol)) });
-  else kpis.push({ label: "Total Records", value: fmtNum(rows.length) });
+  else if (!typeCol) kpis.push({ label: "Total Records", value: fmtNum(rows.length) });
+
   if (profitCol) {
     kpis.push({ label: `Total ${profitCol}`, value: fmtMoney(sumOf(profitCol)) });
     if (revenueCol && sumOf(revenueCol) !== 0) {
