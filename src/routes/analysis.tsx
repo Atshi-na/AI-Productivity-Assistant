@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Database, FileUp, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, Database, FileUp, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAnalysis } from "@/lib/analysis-store";
 import { profileCsv, type DatasetProfile } from "@/lib/data-analysis";
+import { cleanDataset, type CleaningReport } from "@/lib/data-cleaning";
 import { generateSampleDataset, sampleDatasetToCsv } from "@/lib/sample-data";
 import { generateInsightsFn, type InsightStatus } from "@/lib/ai.functions";
 import { BarsChart, DonutChart, TrendChart } from "@/components/charts";
 import { AiNote, EmptyState, ErrorAlert, LoadingBlock, PageHeader, Panel } from "@/components/ui-bits";
+
 
 export const Route = createFileRoute("/analysis")({
   head: () => ({
