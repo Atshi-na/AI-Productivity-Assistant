@@ -696,6 +696,22 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   lines.push(
     `Data completeness: ${duplicateRows} duplicate rows (${r2((duplicateRows / Math.max(1, rows.length)) * 100)}% of rows), ${totalMissing} missing cells (${r2((totalMissing / Math.max(1, rows.length * Math.max(1, headers.length))) * 100)}% of all cells).`,
   );
+  if (typeCol) {
+    const tc = new Map<string, number>();
+    for (const row of rows) {
+      const v = cleanValue(row[typeCol.name]);
+      if (!v) continue;
+      tc.set(v, (tc.get(v) ?? 0) + 1);
+    }
+    lines.push(
+      `Exact counts from the "${typeCol.name}" column (authoritative, counted row by row): ${[...tc.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `${k} = ${v} records (${r2((v / rows.length) * 100)}%)`)
+        .join(", ")}; total records = ${rows.length}.`,
+    );
+  }
+
+
 
   for (const n of numericCols) {
     const vals = numericValues(n);
