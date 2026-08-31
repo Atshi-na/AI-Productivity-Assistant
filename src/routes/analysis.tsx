@@ -400,7 +400,23 @@ function StatusBadge({ status }: { status?: InsightStatus | undefined }) {
 }
 
 
+/** One "Before vs After cleaning" comparison row. */
+function BeforeAfterRow({ label, before, after }: { label: string; before: number; after: number }) {
+  const diff = after - before;
+  return (
+    <tr className="border-b border-border/50 last:border-0">
+      <td className="py-2 pr-4 font-medium text-foreground">{label}</td>
+      <td className="py-2 pr-4 text-muted-foreground">{before.toLocaleString()}</td>
+      <td className="py-2 pr-4 font-medium text-foreground">{after.toLocaleString()}</td>
+      <td className={`py-2 ${diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-success" : "text-warning-foreground"}`}>
+        {diff === 0 ? "No change" : `${diff > 0 ? "+" : ""}${diff.toLocaleString()}`}
+      </td>
+    </tr>
+  );
+}
+
 function OverviewStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <p className="panel-label">{label}</p>
