@@ -32,11 +32,27 @@ export const Route = createFileRoute("/analysis")({
 });
 
 function DataAnalysisPage() {
-  const { dataset, insights, setDataset, setInsights } = useAnalysis();
+  const { dataset, insights, cleaning, setDataset, setInsights, setCleaned } = useAnalysis();
   const [error, setError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [cleaningBusy, setCleaningBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const runCleaning = () => {
+    if (!dataset) return;
+    setCleaningBusy(true);
+    try {
+      const { profile, report } = cleanDataset(dataset);
+      setCleaned(profile, report);
+      toast.success(`Data cleaned — ${report.after.rows.toLocaleString()} valid records ready for analysis.`);
+    } catch {
+      setError("We couldn't clean this dataset. Please check that the file contains valid tabular data.");
+    } finally {
+      setCleaningBusy(false);
+    }
+  };
+
 
   const loadProfile = (profile: DatasetProfile) => {
     setDataset(profile);
