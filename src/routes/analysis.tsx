@@ -4,7 +4,7 @@ import { CheckCircle2, Database, FileUp, Sparkles, Trash2, Wand2 } from "lucide-
 import { toast } from "sonner";
 import { useAnalysis } from "@/lib/analysis-store";
 import { profileCsv, type DatasetProfile } from "@/lib/data-analysis";
-import { cleanDataset, type CleaningReport } from "@/lib/data-cleaning";
+import { cleanDataset } from "@/lib/data-cleaning";
 import { generateSampleDataset, sampleDatasetToCsv } from "@/lib/sample-data";
 import { generateInsightsFn, type InsightStatus } from "@/lib/ai.functions";
 import { BarsChart, DonutChart, TrendChart } from "@/components/charts";
