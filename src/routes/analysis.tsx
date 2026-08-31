@@ -1,13 +1,15 @@
 import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Database, FileUp, Sparkles, Trash2 } from "lucide-react";
+import { CheckCircle2, Database, FileUp, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAnalysis } from "@/lib/analysis-store";
 import { profileCsv, type DatasetProfile } from "@/lib/data-analysis";
+import { cleanDataset } from "@/lib/data-cleaning";
 import { generateSampleDataset, sampleDatasetToCsv } from "@/lib/sample-data";
 import { generateInsightsFn, type InsightStatus } from "@/lib/ai.functions";
 import { BarsChart, DonutChart, TrendChart } from "@/components/charts";
 import { AiNote, EmptyState, ErrorAlert, LoadingBlock, PageHeader, Panel } from "@/components/ui-bits";
+
 
 export const Route = createFileRoute("/analysis")({
   head: () => ({
@@ -30,11 +32,27 @@ export const Route = createFileRoute("/analysis")({
 });
 
 function DataAnalysisPage() {
-  const { dataset, insights, setDataset, setInsights } = useAnalysis();
+  const { dataset, insights, cleaning, setDataset, setInsights, setCleaned } = useAnalysis();
   const [error, setError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [cleaningBusy, setCleaningBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const runCleaning = () => {
+    if (!dataset) return;
+    setCleaningBusy(true);
+    try {
+      const { profile, report } = cleanDataset(dataset);
+      setCleaned(profile, report);
+      toast.success(`Data cleaned — ${report.after.rows.toLocaleString()} valid records ready for analysis.`);
+    } catch {
+      setError("We couldn't clean this dataset. Please check that the file contains valid tabular data.");
+    } finally {
+      setCleaningBusy(false);
+    }
+  };
+
 
   const loadProfile = (profile: DatasetProfile) => {
     setDataset(profile);
@@ -140,8 +158,83 @@ function DataAnalysisPage() {
         />
       ) : (
         <>
+          {/* Cleaning: Load Data → Check Quality → Clean Data → Validate → Analyze */}
+          <Panel
+            title="Data Cleaning"
+            badge={cleaning ? "Data Cleaned ✓" : "Not cleaned yet"}
+            actions={
+              <button
+                type="button"
+                onClick={runCleaning}
+                disabled={cleaningBusy}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Wand2 className="h-4 w-4" />
+                {cleaningBusy ? "Cleaning…" : cleaning ? "Clean again" : "Clean Data"}
+              </button>
+            }
+          >
+            {cleaning ? (
+              <div className="space-y-4">
+                <p className="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Data Cleaned ✓ — all KPIs, charts, insights, recommendations and the AI
+                  Assistant now use the cleaned dataset.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[440px] text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="pb-2 pr-4 font-medium">Measure</th>
+                        <th className="pb-2 pr-4 font-medium">Before cleaning</th>
+                        <th className="pb-2 pr-4 font-medium">After cleaning</th>
+                        <th className="pb-2 font-medium">Change</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <BeforeAfterRow label="Records" before={cleaning.before.rows} after={cleaning.after.rows} />
+                      <BeforeAfterRow label="Missing values" before={cleaning.before.missing} after={cleaning.after.missing} />
+                      <BeforeAfterRow label="Duplicate rows" before={cleaning.before.duplicates} after={cleaning.after.duplicates} />
+                      <BeforeAfterRow label="Columns" before={cleaning.before.columns} after={cleaning.after.columns} />
+                    </tbody>
+                  </table>
+                </div>
+                <div>
+                  <p className="panel-label mb-1.5">What was done</p>
+                  <ul className="space-y-1.5">
+                    {cleaning.notes.map((n, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        {n}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {cleaning.columnFixes.length > 0 && (
+                  <div>
+                    <p className="panel-label mb-1.5">Columns affected ({cleaning.columnFixes.length})</p>
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {cleaning.columnFixes.map((f) => (
+                        <li key={f.column} className="rounded-lg border border-border bg-muted/30 p-3">
+                          <p className="text-xs font-semibold text-foreground">{f.column}</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{f.actions.join("; ")}.</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Run cleaning before analysis. It standardises formatting and data types, trims extra spaces, fixes invalid values,
+                removes duplicate and empty records, and fills missing values with sensible column-appropriate rules — records with
+                missing optional details such as director or cast are kept, never deleted.
+              </p>
+            )}
+          </Panel>
+
           {/* Overview */}
           <Panel title="Dataset Overview" badge={dataset.name}>
+
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <OverviewStat label="Rows" value={dataset.rowCount.toLocaleString()} />
               <OverviewStat label="Columns" value={String(dataset.columnCount)} />
@@ -307,7 +400,23 @@ function StatusBadge({ status }: { status?: InsightStatus | undefined }) {
 }
 
 
+/** One "Before vs After cleaning" comparison row. */
+function BeforeAfterRow({ label, before, after }: { label: string; before: number; after: number }) {
+  const diff = after - before;
+  return (
+    <tr className="border-b border-border/50 last:border-0">
+      <td className="py-2 pr-4 font-medium text-foreground">{label}</td>
+      <td className="py-2 pr-4 text-muted-foreground">{before.toLocaleString()}</td>
+      <td className="py-2 pr-4 font-medium text-foreground">{after.toLocaleString()}</td>
+      <td className={`py-2 ${diff === 0 ? "text-muted-foreground" : diff < 0 ? "text-success" : "text-warning-foreground"}`}>
+        {diff === 0 ? "No change" : `${diff > 0 ? "+" : ""}${diff.toLocaleString()}`}
+      </td>
+    </tr>
+  );
+}
+
 function OverviewStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <p className="panel-label">{label}</p>
