@@ -7,6 +7,19 @@ export interface ColumnFix {
   actions: string[];
 }
 
+/** Something the cleaner refused to change on its own. */
+export interface ReviewItem {
+  column: string;
+  issue: string;
+}
+
+/** Possible outliers — reported, never deleted. */
+export interface OutlierNote {
+  column: string;
+  count: number;
+  detail: string;
+}
+
 export interface CleaningReport {
   before: { rows: number; missing: number; duplicates: number; columns: number };
   after: { rows: number; missing: number; duplicates: number; columns: number };
@@ -16,6 +29,13 @@ export interface CleaningReport {
   valuesTrimmed: number;
   invalidValuesFixed: number;
   typesNormalized: number;
+  typesCorrected: number;
+  textColumnsTrimmed: number;
+  numericColumnsFixed: number;
+  dateColumnsFixed: number;
+  columnsRemoved: string[];
+  needsReview: ReviewItem[];
+  outliers: OutlierNote[];
   columnFixes: ColumnFix[];
   notes: string[];
 }
