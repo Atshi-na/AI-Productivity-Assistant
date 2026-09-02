@@ -279,21 +279,28 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
     }
   }
 
-  // --- 3. Row-level validation ----------------------------------------------
-  const essential = headers.filter((h) => ESSENTIAL_RE.test(h) && !OPTIONAL_RE.test(h));
+  // --- 3. Drop columns that hold no information at all -----------------------
+  const columnsRemoved = headers.filter((h) => rows.every((r) => (r[h] ?? "") === ""));
+  const keptHeaders = headers.filter((h) => !columnsRemoved.includes(h));
+  for (const h of columnsRemoved) note(h, "column was completely empty and was removed");
+
+  // --- 4. Row-level validation ----------------------------------------------
+  const essential = keptHeaders.filter((h) => ESSENTIAL_RE.test(h) && !OPTIONAL_RE.test(h));
   const seen = new Set<string>();
   let duplicatesRemoved = 0;
   let emptyRemoved = 0;
   let invalidRowsRemoved = 0;
+  const invalidRows: Array<Record<string, string>> = [];
 
-  const kept = rows.filter((row) => {
-    const values = headers.map((h) => row[h] ?? "");
+  let kept = rows.filter((row) => {
+    const values = keptHeaders.map((h) => row[h] ?? "");
     if (values.every((v) => v === "")) {
       emptyRemoved++;
       return false;
     }
     if (essential.length > 0 && essential.every((h) => (row[h] ?? "") === "")) {
       invalidRowsRemoved++;
+      invalidRows.push(row);
       return false;
     }
     const key = values.join("\u0001");
@@ -305,20 +312,49 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
     return true;
   });
 
-  const cleanedCsv = Papa.unparse({ fields: headers, data: kept.map((r) => headers.map((h) => r[h] ?? "")) });
+  // Safety rule: never drop a large share of the data without a clear reason.
+  // Duplicates and blank rows are clear reasons; "missing an ID" is not, at scale.
+  if (invalidRowsRemoved > 0 && invalidRowsRemoved > rows.length * 0.2) {
+    kept = [...kept, ...invalidRows];
+    needsReview.push({
+      column: essential.join(", ") || "key columns",
+      issue: `${invalidRowsRemoved} records have no identifying value. That is too much data to delete, so the records were kept. Needs Review.`,
+    });
+    invalidRowsRemoved = 0;
+  }
+
+  const cleanedCsv = Papa.unparse({
+    fields: keptHeaders,
+    data: kept.map((r) => keptHeaders.map((h) => r[h] ?? "")),
+  });
   const cleanedProfile = profileCsv(cleanedCsv, profile.name);
 
+  const numericColumnsFixed = numericColumns.size;
+  const dateColumnsFixed = dateColumns.size;
+  const textColumnsTrimmed = trimmedColumns.size;
+  const typesCorrected = numericColumnsFixed + dateColumnsFixed;
+
   const notes: string[] = [];
-  if (duplicatesRemoved) notes.push(`Removed ${duplicatesRemoved} duplicate record${duplicatesRemoved === 1 ? "" : "s"}.`);
-  if (emptyRemoved) notes.push(`Removed ${emptyRemoved} completely empty row${emptyRemoved === 1 ? "" : "s"}.`);
+  if (duplicatesRemoved) notes.push(`${duplicatesRemoved} duplicate row${duplicatesRemoved === 1 ? "" : "s"} removed.`);
+  if (emptyRemoved) notes.push(`${emptyRemoved} completely empty row${emptyRemoved === 1 ? "" : "s"} removed.`);
   if (invalidRowsRemoved)
-    notes.push(`Removed ${invalidRowsRemoved} record${invalidRowsRemoved === 1 ? "" : "s"} with no identifying information.`);
-  if (valuesTrimmed) notes.push(`Trimmed extra spaces from ${valuesTrimmed} value${valuesTrimmed === 1 ? "" : "s"}.`);
-  if (typesNormalized) notes.push(`Standardised ${typesNormalized} value${typesNormalized === 1 ? "" : "s"} to the correct format.`);
-  if (invalidValuesFixed) notes.push(`Cleared ${invalidValuesFixed} invalid value${invalidValuesFixed === 1 ? "" : "s"}.`);
-  if (valuesFilled) notes.push(`Filled ${valuesFilled} missing value${valuesFilled === 1 ? "" : "s"} using safe, column-appropriate rules.`);
+    notes.push(`${invalidRowsRemoved} record${invalidRowsRemoved === 1 ? "" : "s"} removed because they had no identifying information.`);
+  if (before.missing) notes.push(`${before.missing} missing value${before.missing === 1 ? "" : "s"} found in the raw data.`);
+  if (numericColumnsFixed)
+    notes.push(`${numericColumnsFixed} numeric column${numericColumnsFixed === 1 ? "" : "s"} stored as text corrected to numbers.`);
+  if (dateColumnsFixed) notes.push(`${dateColumnsFixed} date column${dateColumnsFixed === 1 ? "" : "s"} converted to proper dates.`);
+  if (textColumnsTrimmed)
+    notes.push(`Extra spaces removed from ${textColumnsTrimmed} text column${textColumnsTrimmed === 1 ? "" : "s"}.`);
+  if (invalidValuesFixed) notes.push(`${invalidValuesFixed} invalid value${invalidValuesFixed === 1 ? "" : "s"} cleared.`);
+  if (valuesFilled)
+    notes.push(`${valuesFilled} missing value${valuesFilled === 1 ? "" : "s"} filled using safe, column-appropriate rules (no random values).`);
+  if (columnsRemoved.length)
+    notes.push(`${columnsRemoved.length} empty column${columnsRemoved.length === 1 ? "" : "s"} removed (${columnsRemoved.join(", ")}).`);
+  if (outliers.length)
+    notes.push(`Possible outliers found in ${outliers.length} column${outliers.length === 1 ? "" : "s"} — flagged for you, not deleted.`);
+  notes.push("Your original raw dataset was not changed — cleaning works on a copy.");
   notes.push("Records with missing optional details (such as director or cast) were kept, not deleted.");
-  if (notes.length === 1) notes.unshift("No issues needed fixing — the dataset was already clean.");
+  if (notes.length === 2) notes.unshift("No issues needed fixing — the dataset was already clean.");
 
   return {
     profile: cleanedProfile,
@@ -336,6 +372,13 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
       valuesTrimmed,
       invalidValuesFixed,
       typesNormalized,
+      typesCorrected,
+      textColumnsTrimmed,
+      numericColumnsFixed,
+      dateColumnsFixed,
+      columnsRemoved,
+      needsReview,
+      outliers,
       columnFixes: [...fixes.entries()].map(([column, actions]) => ({ column, actions: [...actions] })),
       notes,
     },
