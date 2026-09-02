@@ -145,8 +145,17 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
     const numericOk = present.filter((v) => numericCandidate(v) !== null).length;
     const dateOk = present.filter((v) => /\d{4}|\d{1,2}[-/]\d{1,2}/.test(v) && iso(v) !== null).length;
 
+    // Values we cannot classify at all get flagged rather than changed.
+    if (numericOk / present.length < 0.8 && dateOk / present.length < 0.8 && numericOk / present.length >= 0.4) {
+      needsReview.push({
+        column: h,
+        issue: "This column mixes numbers and text, so it was left exactly as it is. Needs Review.",
+      });
+    }
+
     if (numericOk / present.length >= 0.8) {
       // Numeric column: strip formatting, blank out invalid values, fill gaps with the median.
+      if (col.type !== "number") numericColumns.add(h);
       const numbers: number[] = [];
       for (const row of rows) {
         const v = row[h] ?? "";
