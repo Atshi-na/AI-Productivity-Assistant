@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { DatasetProfile } from "./data-analysis";
-import type { CleaningReport } from "./data-cleaning";
+import { cleanDataset, type CleaningReport } from "./data-cleaning";
 import type { Insight, Recommendation } from "./ai.functions";
 
 interface AnalysisState {
+  /** Untouched dataset exactly as uploaded/loaded. Never used for analysis. */
+  raw: DatasetProfile | null;
+  /** Cleaned dataset — the only one KPIs, charts and AI features read. */
   dataset: DatasetProfile | null;
   insights: Insight[];
   recommendations: Recommendation[];
@@ -18,13 +21,14 @@ const AnalysisContext = createContext<AnalysisState | null>(null);
 const STORAGE_KEY = "meridian-analysis-state";
 
 interface Persisted {
+  raw: DatasetProfile | null;
   dataset: DatasetProfile | null;
   insights: Insight[];
   recommendations: Recommendation[];
   cleaning: CleaningReport | null;
 }
 
-const EMPTY: Persisted = { dataset: null, insights: [], recommendations: [], cleaning: null };
+const EMPTY: Persisted = { raw: null, dataset: null, insights: [], recommendations: [], cleaning: null };
 
 function loadPersisted(): Persisted {
   if (typeof window === "undefined") return EMPTY;
@@ -57,22 +61,28 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AnalysisState>(
     () => ({
+      raw: state.raw,
       dataset: state.dataset,
       insights: state.insights,
       recommendations: state.recommendations,
       cleaning: state.cleaning,
-      setDataset: (dataset) =>
-        setState((s) => ({
-          dataset,
-          insights: [],
-          recommendations: dataset && s.dataset?.name === dataset.name ? s.recommendations : [],
-          cleaning: null,
-        })),
+      // Loading data always runs the cleaning pass first: analysis only ever
+      // sees cleaned records, while `raw` keeps the original file intact.
+      setDataset: (incoming) =>
+        setState(() => {
+          if (!incoming) return EMPTY;
+          try {
+            const { profile, report } = cleanDataset(incoming);
+            return { raw: incoming, dataset: profile, cleaning: report, insights: [], recommendations: [] };
+          } catch {
+            return { raw: incoming, dataset: incoming, cleaning: null, insights: [], recommendations: [] };
+          }
+        }),
       setInsights: (insights) => setState((s) => ({ ...s, insights })),
       setRecommendations: (recommendations) => setState((s) => ({ ...s, recommendations })),
       // Cleaning replaces the working dataset: every downstream KPI, chart, insight,
       // recommendation and assistant answer then uses the cleaned records.
-      setCleaned: (dataset, cleaning) => setState(() => ({ dataset, cleaning, insights: [], recommendations: [] })),
+      setCleaned: (dataset, cleaning) => setState((s) => ({ ...s, dataset, cleaning, insights: [], recommendations: [] })),
     }),
     [state],
   );

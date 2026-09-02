@@ -32,7 +32,7 @@ export const Route = createFileRoute("/analysis")({
 });
 
 function DataAnalysisPage() {
-  const { dataset, insights, cleaning, setDataset, setInsights, setCleaned } = useAnalysis();
+  const { raw, dataset, insights, cleaning, setDataset, setInsights, setCleaned } = useAnalysis();
   const [error, setError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
@@ -40,10 +40,11 @@ function DataAnalysisPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const runCleaning = () => {
-    if (!dataset) return;
+    const source = raw ?? dataset;
+    if (!source) return;
     setCleaningBusy(true);
     try {
-      const { profile, report } = cleanDataset(dataset);
+      const { profile, report } = cleanDataset(source);
       setCleaned(profile, report);
       toast.success(`Data cleaned — ${report.after.rows.toLocaleString()} valid records ready for analysis.`);
     } catch {
@@ -57,7 +58,7 @@ function DataAnalysisPage() {
   const loadProfile = (profile: DatasetProfile) => {
     setDataset(profile);
     setError(null);
-    toast.success(`Loaded "${profile.name}" — ${profile.rowCount.toLocaleString()} rows analyzed.`);
+    toast.success(`Loaded "${profile.name}" — data profiled and cleaned, ready for analysis.`);
   };
 
   const handleFile = async (file: File) => {
@@ -176,9 +177,10 @@ function DataAnalysisPage() {
           >
             {cleaning ? (
               <div className="space-y-4">
+                <PipelineStatus busy={cleaningBusy} />
                 <p className="inline-flex items-center gap-2 rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Data Cleaned ✓ — all KPIs, charts, insights, recommendations and the AI
-                  Assistant now use the cleaned dataset.
+                  Assistant use the cleaned dataset only. Your raw file is kept unchanged.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[440px] text-left text-xs">
@@ -195,6 +197,22 @@ function DataAnalysisPage() {
                       <BeforeAfterRow label="Missing values" before={cleaning.before.missing} after={cleaning.after.missing} />
                       <BeforeAfterRow label="Duplicate rows" before={cleaning.before.duplicates} after={cleaning.after.duplicates} />
                       <BeforeAfterRow label="Columns" before={cleaning.before.columns} after={cleaning.after.columns} />
+                      <tr className="border-b border-border/50 last:border-0">
+                        <td className="py-2 pr-4 font-medium text-foreground">Data types corrected</td>
+                        <td className="py-2 pr-4 text-muted-foreground">—</td>
+                        <td className="py-2 pr-4 text-foreground">{cleaning.typesCorrected}</td>
+                        <td className="py-2 text-muted-foreground">
+                          {cleaning.numericColumnsFixed} numeric, {cleaning.dateColumnsFixed} date
+                        </td>
+                      </tr>
+                      <tr className="border-b border-border/50 last:border-0">
+                        <td className="py-2 pr-4 font-medium text-foreground">Issues fixed</td>
+                        <td className="py-2 pr-4 text-muted-foreground">—</td>
+                        <td className="py-2 pr-4 text-foreground">
+                          {cleaning.duplicatesRemoved + cleaning.valuesFilled + cleaning.valuesTrimmed + cleaning.invalidValuesFixed}
+                        </td>
+                        <td className="py-2 text-muted-foreground">values and rows repaired</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -209,6 +227,30 @@ function DataAnalysisPage() {
                     ))}
                   </ul>
                 </div>
+                {cleaning.outliers.length > 0 && (
+                  <div>
+                    <p className="panel-label mb-1.5">Possible outliers (kept, not deleted)</p>
+                    <ul className="space-y-1.5">
+                      {cleaning.outliers.map((o) => (
+                        <li key={o.column} className="text-xs text-muted-foreground">
+                          <span className="font-semibold text-foreground">{o.column}:</span> {o.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {cleaning.needsReview.length > 0 && (
+                  <div>
+                    <p className="panel-label mb-1.5">Needs Review ({cleaning.needsReview.length})</p>
+                    <ul className="space-y-1.5">
+                      {cleaning.needsReview.map((r, i) => (
+                        <li key={i} className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-foreground">
+                          <span className="font-semibold">{r.column}:</span> {r.issue}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {cleaning.columnFixes.length > 0 && (
                   <div>
                     <p className="panel-label mb-1.5">Columns affected ({cleaning.columnFixes.length})</p>
@@ -224,11 +266,14 @@ function DataAnalysisPage() {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Run cleaning before analysis. It standardises formatting and data types, trims extra spaces, fixes invalid values,
-                removes duplicate and empty records, and fills missing values with sensible column-appropriate rules — records with
-                missing optional details such as director or cast are kept, never deleted.
-              </p>
+              <div className="space-y-3">
+                <PipelineStatus busy={cleaningBusy} />
+                <p className="text-sm text-muted-foreground">
+                  Cleaning runs automatically when data is loaded: it detects column names and types, removes duplicate and empty
+                  rows, trims extra spaces, standardises text, converts numbers and dates, and fills missing values with sensible
+                  column-appropriate rules. Valid outliers and anything unsafe to change are flagged as Needs Review instead.
+                </p>
+              </div>
             )}
           </Panel>
 
@@ -399,6 +444,23 @@ function StatusBadge({ status }: { status?: InsightStatus | undefined }) {
   );
 }
 
+
+/** Raw Data → Cleaning → Cleaned ✓ → Ready for Analysis. */
+function PipelineStatus({ busy }: { busy: boolean }) {
+  const steps = ["Raw Data", busy ? "Cleaning…" : "Cleaning", "Cleaned ✓", "Ready for Analysis"];
+  return (
+    <ol className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+      {steps.map((s, i) => (
+        <li key={s} className="flex items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 ${busy && i > 1 ? "bg-secondary text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+            {s}
+          </span>
+          {i < steps.length - 1 && <span className="text-muted-foreground">→</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 /** One "Before vs After cleaning" comparison row. */
 function BeforeAfterRow({ label, before, after }: { label: string; before: number; after: number }) {
