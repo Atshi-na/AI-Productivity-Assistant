@@ -184,11 +184,39 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
           }
         }
         note(h, `filled ${gaps} missing value${gaps === 1 ? "" : "s"} with the typical value (${fill})`);
+      } else if (gaps > 0) {
+        needsReview.push({
+          column: h,
+          issue: `${gaps} missing value${gaps === 1 ? "" : "s"} in an important column were left blank instead of being guessed. Needs Review.`,
+        });
+      }
+      // Possible outliers are reported only — valid extreme values are never deleted.
+      if (numbers.length >= 12) {
+        const sorted = [...numbers].sort((a, b) => a - b);
+        const q = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))] as number;
+        const q1 = q(0.25);
+        const q3 = q(0.75);
+        const iqr = q3 - q1;
+        if (iqr > 0) {
+          const lo = q1 - 1.5 * iqr;
+          const hi = q3 + 1.5 * iqr;
+          const odd = numbers.filter((n) => n < lo || n > hi);
+          if (odd.length > 0) {
+            outliers.push({
+              column: h,
+              count: odd.length,
+              detail: `${odd.length} value${odd.length === 1 ? " is" : "s are"} much higher or lower than the rest (outside ${
+                Math.round(lo * 100) / 100
+              } to ${Math.round(hi * 100) / 100}). Kept as-is for review.`,
+            });
+          }
+        }
       }
       continue;
     }
 
     if (dateOk / present.length >= 0.8) {
+      if (col.type !== "date") dateColumns.add(h);
       for (const row of rows) {
         const v = row[h] ?? "";
         if (v === "") continue;
