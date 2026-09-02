@@ -155,7 +155,7 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
 
     if (numericOk / present.length >= 0.8) {
       // Numeric column: strip formatting, blank out invalid values, fill gaps with the median.
-      if (col.type !== "number") numericColumns.add(h);
+
       const numbers: number[] = [];
       for (const row of rows) {
         const v = row[h] ?? "";
@@ -169,6 +169,7 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
         }
         if (n !== v) {
           typesNormalized++;
+          numericColumns.add(h);
           note(h, "converted text to proper numbers");
         }
         row[h] = n;
@@ -216,7 +217,7 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
     }
 
     if (dateOk / present.length >= 0.8) {
-      if (col.type !== "date") dateColumns.add(h);
+
       for (const row of rows) {
         const v = row[h] ?? "";
         if (v === "") continue;
@@ -228,6 +229,7 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
         } else if (d !== v) {
           row[h] = d;
           typesNormalized++;
+          dateColumns.add(h);
           note(h, "standardised dates to YYYY-MM-DD");
         }
       }
