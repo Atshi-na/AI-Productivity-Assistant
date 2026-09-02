@@ -111,6 +111,11 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
   let invalidValuesFixed = 0;
   let typesNormalized = 0;
   let valuesFilled = 0;
+  const trimmedColumns = new Set<string>();
+  const numericColumns = new Set<string>();
+  const dateColumns = new Set<string>();
+  const needsReview: ReviewItem[] = [];
+  const outliers: OutlierNote[] = [];
 
   // --- 1. Whitespace + missing-marker normalisation --------------------------
   for (const row of rows) {
@@ -119,6 +124,7 @@ export function cleanDataset(profile: DatasetProfile): { profile: DatasetProfile
       const cleaned = tidy(raw);
       if (cleaned !== raw) {
         valuesTrimmed++;
+        trimmedColumns.add(h);
         note(h, "removed extra whitespace");
       }
       if (isMissing(cleaned)) {
