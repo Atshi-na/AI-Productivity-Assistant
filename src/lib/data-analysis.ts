@@ -854,21 +854,35 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     const avg = vals.reduce((s, v) => s + v, 0) / vals.length;
     const sorted = [...vals].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)] ?? avg;
-    if (isYearLike(n) || isIdLike(n)) {
-      // Counts per value (top years / most frequent values) — never a sum.
+    if (isYearLike(n)) {
+      // A year column is a time dimension: ranges, counts per year, trend.
       const counts = new Map<number, number>();
       for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
-      const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+      const byYear = [...counts.entries()].sort((a, b) => a[0] - b[0]);
+      const busiest = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
       lines.push(
-        `${n} (year/identifier column — do NOT sum it): ranges from ${min} to ${max}; ${counts.size} distinct values; most frequent: ${top
-          .map(([v, c]) => `${v} with ${c} records (${r2((c / vals.length) * 100)}% of records)`)
+        `${n} (year column — a time dimension, never a total and never money): earliest ${min}, latest ${max}, ${counts.size} distinct years; busiest year ${busiest[0]} with ${busiest[1]} records (${r2((busiest[1] / vals.length) * 100)}% of records); average year ${Math.round(avg)}.`,
+      );
+      lines.push(
+        `Records per ${n} (year = record count): ${byYear
+          .slice(-15)
+          .map(([y, c]) => `${y}=${c}`)
           .join(", ")}.`,
+      );
+    } else if (isIdLike(n)) {
+      lines.push(
+        `${n} (identifier column — never sum or average it): ${counts0(vals)} distinct values across ${vals.length} records.`,
+      );
+    } else if (roleOf(n) === "percentage") {
+      lines.push(
+        `${n} (percentage column): average ${r2(avg)}%, median ${r2(median)}%, lowest ${r2(min)}%, highest ${r2(max)}%. Do not sum percentages.`,
       );
     } else {
       lines.push(
-        `${n}: total ${r2(vals.reduce((s, v) => s + v, 0))}; average ${r2(avg)}; median ${r2(median)}; lowest ${r2(min)}; highest ${r2(max)}; ${vals.length} of ${rows.length} records have a value.`,
+        `${n} (measure${isCurrencyCol(n) ? ", monetary" : ""}): total ${r2(vals.reduce((s, v) => s + v, 0))}; average ${r2(avg)}; median ${r2(median)}; lowest ${r2(min)}; highest ${r2(max)}; ${vals.length} of ${rows.length} records have a value.`,
       );
     }
+
   }
 
   // Category breakdowns as counts + share of records (easy to read, no jargon).
