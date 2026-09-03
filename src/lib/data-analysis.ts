@@ -62,17 +62,31 @@ export interface DatasetProfile {
   analystContext: string; // detailed, pre-computed facts for the data-aware assistant
 }
 
-const REVENUE_RE = /revenue|sales|amount|total|income/i;
-const PROFIT_RE = /profit|margin|earnings/i;
+const REVENUE_RE = /revenue|sales|amount|income|gross|turnover/i;
+const PROFIT_RE = /profit|earnings/i;
 const QTY_RE = /quantity|qty|units|orders|volume|count/i;
 const CUSTOMER_RE = /customer|client|account|company/i;
 const DATE_RE = /date|day|time|period|month/i;
+
+/** Column-name signals used for semantic classification. */
+const YEAR_NAME_RE = /(^|[_\s-])(year|yr|years)([_\s-]|$)/i;
+const ID_NAME_RE = /(^|[_\s-])(id|ids|uuid|guid|code|sku|isbn|zip|postal|phone|show[_\s-]?id)([_\s-]|$)/i;
+const PERCENT_NAME_RE = /percent|percentage|pct|ratio|rate|share|margin/i;
+const CURRENCY_NAME_RE =
+  /revenue|sales|price|cost|amount|income|profit|salary|wage|budget|spend|spending|fee|payment|paid|gross|net[_\s-]?value|turnover|usd|eur|gbp|zar|dollar|value|charge|invoice|balance/i;
+const CURRENCY_SYMBOL_RE = /[$€£¥]|\bUSD\b|\bEUR\b|\bGBP\b|\bZAR\b/i;
 
 function looksLikeDate(v: string): boolean {
   if (!v) return false;
   if (!/[\d]{4}[-/]|[\d]{1,2}[-/][\d]{1,2}/.test(v)) return false;
   const t = Date.parse(v);
   return !Number.isNaN(t);
+}
+
+/** True when every numeric value looks like a calendar year. */
+function valuesLookLikeYears(values: number[]): boolean {
+  if (values.length === 0) return false;
+  return values.every((v) => Number.isInteger(v) && v >= 1500 && v <= 2200);
 }
 
 function fmtNum(n: number): string {
@@ -84,6 +98,17 @@ function fmtNum(n: number): string {
 function fmtMoney(n: number): string {
   return "$" + fmtNum(n);
 }
+
+/** Years are plain numbers: no thousand separators, no currency symbol. */
+function fmtYear(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
+/** Format a measure value, using currency only when the column really is money. */
+function fmtMeasure(n: number, isCurrency: boolean): string {
+  return isCurrency ? fmtMoney(n) : fmtNum(n);
+}
+
 
 function cleanValue(value: unknown): string {
   return (value ?? "").toString().trim();
