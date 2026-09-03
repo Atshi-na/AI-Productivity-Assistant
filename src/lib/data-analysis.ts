@@ -808,19 +808,24 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
    * Year-like / identifier-like numeric columns must never be summed — a "sum of
    * release years" is meaningless. They are described with counts and ranges.
    */
-  const isYearLike = (col: string): boolean => {
-    if (/year/i.test(col)) return true;
-    const vals = numericValues(col);
-    if (!vals.length) return false;
-    return vals.every((v) => Number.isInteger(v) && v >= 1800 && v <= 2200);
-  };
-  const isIdLike = (col: string): boolean =>
-    /(^|[_\s-])(id|code|zip|postal|phone)([_\s-]|$)/i.test(col) ||
-    columns.find((c) => c.name === col)?.unique === rows.length;
+  const roleOf = (col: string): ColumnRole => columns.find((c) => c.name === col)?.role ?? "text";
+  const isYearLike = (col: string): boolean => roleOf(col) === "year";
+  const isIdLike = (col: string): boolean => roleOf(col) === "identifier";
 
   const lines: string[] = [];
   lines.push(`Dataset "${name}": ${rows.length} rows, ${headers.length} columns.`);
-  lines.push(`Columns: ${columns.map((c) => `${c.name} (${c.type}${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`);
+  lines.push(
+    `Columns and what they mean: ${columns
+      .map(
+        (c) =>
+          `${c.name} (${c.type}, meaning: ${c.role}${c.isCurrency ? ", monetary" : ""}${c.missing ? `, ${c.missing} missing` : ""})`,
+      )
+      .join("; ")}.`,
+  );
+  lines.push(
+    "Measurement rules: only columns with meaning 'measure' may be summed or averaged as quantities. Year and date columns are time dimensions — describe them with earliest year, latest year, counts per year and trends, never a total. Never use currency symbols unless a column is marked monetary.",
+  );
+
   lines.push(
     `Data completeness: ${duplicateRows} duplicate rows (${r2((duplicateRows / Math.max(1, rows.length)) * 100)}% of rows), ${totalMissing} missing cells (${r2((totalMissing / Math.max(1, rows.length * Math.max(1, headers.length))) * 100)}% of all cells).`,
   );
