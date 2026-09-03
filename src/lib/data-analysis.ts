@@ -605,22 +605,27 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   if (constCol) warnings.push(`"${constCol.name}" contains a single repeated value and adds no analytical signal.`);
 
   // --- Numeric aggregates ---------------------------------------------------
+  /** Only true measures may be summed/averaged. Years, IDs and percentages may not. */
+  const measureCols = columns.filter((c) => c.role === "measure").map((c) => c.name);
   const numericCols = columns.filter((c) => c.type === "number").map((c) => c.name);
+  const yearCols = columns.filter((c) => c.role === "year");
   const sums: Record<string, number> = {};
-  for (const n of numericCols) sums[n] = 0;
+  for (const n of measureCols) sums[n] = 0;
   const sumOf = (n: string): number => sums[n] ?? 0;
   for (const row of rows) {
-    for (const n of numericCols) {
+    for (const n of measureCols) {
       const v = Number(row[n]);
       if (!Number.isNaN(v)) sums[n] = (sums[n] ?? 0) + v;
     }
   }
+  const isCurrencyCol = (n: string | undefined): boolean =>
+    Boolean(n) && Boolean(columns.find((c) => c.name === n)?.isCurrency);
 
-  const revenueCol = numericCols.find((n) => REVENUE_RE.test(n)) ?? numericCols[0];
-  const profitCol = numericCols.find((n) => PROFIT_RE.test(n));
-  const qtyCol = numericCols.find((n) => QTY_RE.test(n) && n !== revenueCol);
-  const customerCol = columns.find((c) => CUSTOMER_RE.test(c.name) && c.type !== "number")?.name;
-  const dateCol = columns.find((c) => c.type === "date" || DATE_RE.test(c.name))?.name;
+  const revenueCol = measureCols.find((n) => REVENUE_RE.test(n)) ?? measureCols[0];
+  const profitCol = measureCols.find((n) => PROFIT_RE.test(n));
+  const qtyCol = measureCols.find((n) => QTY_RE.test(n) && n !== revenueCol);
+  const customerCol = columns.find((c) => CUSTOMER_RE.test(c.name) && c.role === "categorical")?.name;
+  const dateCol = columns.find((c) => c.role === "date" || (c.type === "date" && DATE_RE.test(c.name)))?.name;
 
   // --- KPIs ------------------------------------------------------------------
   const kpis: Kpi[] = [];
@@ -652,22 +657,62 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   }
 
   if (revenueCol) {
-    kpis.push({ label: `Total ${revenueCol}`, value: fmtMoney(sumOf(revenueCol)) });
-    kpis.push({ label: `Average ${revenueCol}`, value: fmtMoney(sumOf(revenueCol) / rows.length), detail: "per record" });
+    kpis.push({ label: `Total ${revenueCol}`, value: fmtMeasure(sumOf(revenueCol), isCurrencyCol(revenueCol)) });
+    kpis.push({
+      label: `Average ${revenueCol} per record`,
+      value: fmtMeasure(sumOf(revenueCol) / rows.length, isCurrencyCol(revenueCol)),
+    });
   }
   if (qtyCol) kpis.push({ label: `Total ${qtyCol}`, value: fmtNum(sumOf(qtyCol)) });
   else if (!typeCol) kpis.push({ label: "Total Records", value: fmtNum(rows.length) });
 
   if (profitCol) {
-    kpis.push({ label: `Total ${profitCol}`, value: fmtMoney(sumOf(profitCol)) });
+    kpis.push({ label: `Total ${profitCol}`, value: fmtMeasure(sumOf(profitCol), isCurrencyCol(profitCol)) });
     if (revenueCol && sumOf(revenueCol) !== 0) {
       kpis.push({ label: "Margin", value: ((sumOf(profitCol) / sumOf(revenueCol)) * 100).toFixed(1) + "%" });
     }
   }
+
+  /**
+   * Year columns are time dimensions: report earliest, latest and most common
+   * year plus record counts — never a sum, never currency, never growth rate.
+   */
+  const yearValuesOf = (col: string): number[] => {
+    const out: number[] = [];
+    for (const row of rows) {
+      const raw = cleanValue(row[col]);
+      if (!raw) continue;
+      const v = Number(raw);
+      if (Number.isFinite(v)) out.push(v);
+    }
+    return out;
+  };
+  const primaryYearCol = yearCols[0];
+  let yearCounts: Array<[number, number]> = [];
+  if (primaryYearCol) {
+    const vals = yearValuesOf(primaryYearCol.name);
+    if (vals.length) {
+      const counts = new Map<number, number>();
+      for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1);
+      yearCounts = [...counts.entries()].sort((a, b) => a[0] - b[0]);
+      const busiest = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]!;
+      const earliest = Math.min(...vals);
+      const latest = Math.max(...vals);
+      kpis.push({ label: `Earliest ${primaryYearCol.name}`, value: fmtYear(earliest) });
+      kpis.push({ label: `Latest ${primaryYearCol.name}`, value: fmtYear(latest) });
+      kpis.push({
+        label: `Most Common ${primaryYearCol.name}`,
+        value: fmtYear(busiest[0]),
+        detail: `${busiest[1].toLocaleString()} records`,
+      });
+    }
+  }
+
   const customerProfile = customerCol ? columns.find((c) => c.name === customerCol) : undefined;
   if (customerCol && customerProfile) kpis.push({ label: `Unique ${customerCol}`, value: fmtNum(customerProfile.unique) });
 
   // --- Time series + growth --------------------------------------------------
+  // Growth rate is only meaningful for a real measure tracked over real dates.
   let trend: TimePoint[] = [];
   let trendLabel = "";
   if (dateCol && revenueCol) {
@@ -691,32 +736,44 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
       if (firstPoint && lastPoint && firstPoint.value !== 0) {
         const growth = ((lastPoint.value - firstPoint.value) / firstPoint.value) * 100;
         kpis.push({
-          label: "Growth Rate",
+          label: `${revenueCol} Growth Rate`,
           value: (growth >= 0 ? "+" : "") + growth.toFixed(1) + "%",
           detail: `${firstPoint.name} → ${lastPoint.name}`,
         });
       }
     }
+  } else if (yearCounts.length >= 2 && primaryYearCol) {
+    // No measure over time — show how many records fall in each year instead.
+    trend = yearCounts.map(([y, c]) => ({ name: String(y), value: c }));
+    trendLabel = `Records by ${primaryYearCol.name}`;
   }
 
   // --- Categorical breakdowns -------------------------------------------------
   const catCols = columns.filter(
-    (c) => c.type === "string" && c.unique >= 2 && c.unique <= Math.min(30, rows.length * 0.8),
+    (c) => c.role === "categorical" && c.unique >= 2 && c.unique <= Math.min(30, rows.length * 0.8),
   );
   const preferred = (re: RegExp) => catCols.find((c) => re.test(c.name));
   const barCol =
     preferred(/region|market|territory/i) ?? preferred(/category|type|department/i) ?? catCols[0];
   const donutCol =
-    catCols.find((c) => c.name !== barCol?.name && /category|segment|type|product|region/i.test(c.name)) ??
+    catCols.find((c) => c.name !== barCol?.name && /category|segment|type|product|region|rating/i.test(c.name)) ??
     catCols.find((c) => c.name !== barCol?.name);
 
-  const groupSum = (colName: string | undefined): ChartPoint[] => {
-    if (!colName || !revenueCol) return [];
+  /**
+   * Charts sum a measure when one exists; otherwise they count records. They
+   * never sum a year or identifier column.
+   */
+  const groupValue = (colName: string | undefined): ChartPoint[] => {
+    if (!colName) return [];
     const m = new Map<string, number>();
     for (const row of rows) {
       const k = cleanValue(row[colName]) || "(missing)";
-      const v = Number(row[revenueCol]);
-      m.set(k, (m.get(k) ?? 0) + (Number.isNaN(v) ? 0 : v));
+      if (revenueCol) {
+        const v = Number(row[revenueCol]);
+        m.set(k, (m.get(k) ?? 0) + (Number.isNaN(v) ? 0 : v));
+      } else {
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
     }
     return [...m.entries()]
       .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
@@ -724,10 +781,15 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
       .slice(0, 12);
   };
 
-  const bars = groupSum(barCol?.name);
-  const barsLabel = barCol && revenueCol ? `${revenueCol} by ${barCol.name}` : "";
-  const donut = groupSum(donutCol?.name);
-  const donutLabel = donutCol && revenueCol ? `${revenueCol} share by ${donutCol.name}` : "";
+  const bars = groupValue(barCol?.name);
+  const barsLabel = barCol ? (revenueCol ? `${revenueCol} by ${barCol.name}` : `Records by ${barCol.name}`) : "";
+  const donut = groupValue(donutCol?.name);
+  const donutLabel = donutCol
+    ? revenueCol
+      ? `${revenueCol} share by ${donutCol.name}`
+      : `Share of records by ${donutCol.name}`
+    : "";
+
 
   // --- Compact factual summary for the AI --------------------------------------
   const r2 = (n: number) => Math.round(n * 100) / 100;
