@@ -2,12 +2,29 @@ import Papa from "papaparse";
 
 export type ColumnType = "number" | "date" | "string";
 
+/**
+ * Semantic meaning of a column. The analysis engine uses this — not just the raw
+ * data type — to decide which calculations are valid:
+ * - identifier: IDs/codes. Never summed, averaged or charted as a measure.
+ * - year: a calendar year stored as a number (e.g. release_year). A time dimension.
+ * - date: a full date. A time dimension.
+ * - measure: a genuine numeric quantity that supports SUM/AVERAGE/MIN/MAX/MEDIAN.
+ * - percentage: already-normalised rate; never summed.
+ * - categorical: low-cardinality label used for grouping.
+ * - text: free text.
+ */
+export type ColumnRole = "identifier" | "year" | "date" | "measure" | "percentage" | "categorical" | "text";
+
 export interface ColumnProfile {
   name: string;
   type: ColumnType;
   missing: number;
   unique: number;
+  role: ColumnRole;
+  /** True only when the column genuinely holds money. Drives $ formatting. */
+  isCurrency: boolean;
 }
+
 
 export interface Kpi {
   label: string;
