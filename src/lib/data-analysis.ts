@@ -535,12 +535,14 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     throw new Error("empty");
   }
 
-  // --- Column typing -------------------------------------------------------
+  // --- Column typing + semantic role ---------------------------------------
   const columns: ColumnProfile[] = headers.map((h) => {
     let missing = 0;
     let numeric = 0;
     let dates = 0;
+    let currencyMarks = 0;
     const uniques = new Set<string>();
+    const nums: number[] = [];
     for (const row of rows) {
       const raw = cleanValue(row[h]);
       if (raw === "") {
@@ -548,15 +550,37 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
         continue;
       }
       uniques.add(raw);
-      if (!Number.isNaN(Number(raw))) numeric++;
-      else if (looksLikeDate(raw)) dates++;
+      if (CURRENCY_SYMBOL_RE.test(raw)) currencyMarks++;
+      const asNumber = Number(raw.replace(/[$€£¥,\s]/g, ""));
+      if (!Number.isNaN(Number(raw))) {
+        numeric++;
+        nums.push(Number(raw));
+      } else if (currencyMarks > 0 && Number.isFinite(asNumber)) {
+        numeric++;
+        nums.push(asNumber);
+      } else if (looksLikeDate(raw)) dates++;
     }
     const present = rows.length - missing;
     let type: ColumnType = "string";
     if (present > 0 && numeric / present >= 0.9) type = "number";
     else if (present > 0 && dates / present >= 0.8) type = "date";
-    return { name: h, type, missing, unique: uniques.size };
+
+    // Semantic role: what the column actually means.
+    let role: ColumnRole;
+    if (type === "date") role = "date";
+    else if (type === "number") {
+      if (YEAR_NAME_RE.test(h) || valuesLookLikeYears(nums)) role = "year";
+      else if (ID_NAME_RE.test(h) || (uniques.size === present && present > 20)) role = "identifier";
+      else if (PERCENT_NAME_RE.test(h)) role = "percentage";
+      else role = "measure";
+    } else if (ID_NAME_RE.test(h) || (present > 20 && uniques.size > present * 0.9)) role = "identifier";
+    else if (uniques.size >= 1 && uniques.size <= Math.max(50, present * 0.5)) role = "categorical";
+    else role = "text";
+
+    const isCurrency = role === "measure" && (currencyMarks > 0 || CURRENCY_NAME_RE.test(h));
+    return { name: h, type, missing, unique: uniques.size, role, isCurrency };
   });
+
 
   // --- Data quality --------------------------------------------------------
   const seen = new Set<string>();
