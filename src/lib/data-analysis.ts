@@ -498,7 +498,21 @@ export function calculateDatasetAnswer(question: string, dataset: DatasetProfile
   if (asksSum) {
     const metric = detectMetricColumn(question, dataset);
     if (!metric) return null;
+    // Years and identifiers are not quantities — a "total of release years" is meaningless.
+    const metricRole = dataset.columns.find((c) => c.name === metric.column)?.role;
+    if (metricRole === "year" || metricRole === "identifier") {
+      return unavailable(
+        `${metric.column} is a ${metricRole === "year" ? "year" : "identifier"} column, so a total for it would not mean anything.`,
+        `Checked what ${metric.column} measures before adding it up.`,
+        [
+          metricRole === "year"
+            ? `Ask instead for the earliest or latest ${metric.column}, the most common ${metric.column}, or how many records fall in each year.`
+            : `Ask instead how many distinct ${metric.column} values the dataset contains.`,
+        ],
+      );
+    }
     const values = numericValues(filteredRows, metric.column, question, filters);
+
     if (!values.length) {
       return unavailable(
         `I could not calculate the total ${metric.column} because there are no usable numeric values after applying the filters.`,
