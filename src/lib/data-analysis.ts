@@ -871,8 +871,9 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
       );
     } else if (isIdLike(n)) {
       lines.push(
-        `${n} (identifier column — never sum or average it): ${counts0(vals)} distinct values across ${vals.length} records.`,
+        `${n} (identifier column — never sum or average it): ${new Set(vals).size} distinct values across ${vals.length} records.`,
       );
+
     } else if (roleOf(n) === "percentage") {
       lines.push(
         `${n} (percentage column): average ${r2(avg)}%, median ${r2(median)}%, lowest ${r2(min)}%, highest ${r2(max)}%. Do not sum percentages.`,
