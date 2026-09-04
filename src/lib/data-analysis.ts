@@ -906,15 +906,15 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     const lastPoint = trend[trend.length - 1]!;
     const change =
       firstPoint.value === 0 ? null : ((lastPoint.value - firstPoint.value) / Math.abs(firstPoint.value)) * 100;
+    const seriesLabel = trendLabel || "Trend";
+    lines.push(`${seriesLabel}: ${trend.map((t) => `${t.name}=${Math.round(t.value)}`).join(", ")}.`);
     lines.push(
-      `Monthly ${revenueCol}: ${trend.map((t) => `${t.name}=${Math.round(t.value)}`).join(", ")}.`,
-    );
-    lines.push(
-      `Trend for ${revenueCol}: ${firstPoint.name} = ${Math.round(firstPoint.value)} vs ${lastPoint.name} = ${Math.round(lastPoint.value)}${
+      `Change across ${seriesLabel}: ${firstPoint.name} = ${Math.round(firstPoint.value)} vs ${lastPoint.name} = ${Math.round(lastPoint.value)}${
         change === null ? "" : ` (${change >= 0 ? "up" : "down"} ${r2(Math.abs(change))}%)`
       }.`,
     );
   }
+
   if (bars.length) {
     const totalBars = bars.reduce((s, b) => s + b.value, 0);
     lines.push(
