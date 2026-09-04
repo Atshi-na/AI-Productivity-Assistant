@@ -964,8 +964,12 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   const detail: string[] = [];
   detail.push(`DATASET: "${name}" — ${rows.length} rows, ${headers.length} columns.`);
   detail.push(
-    `COLUMNS: ${columns.map((c) => `${c.name} (${c.type}, ${c.unique} distinct values${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`,
+    `COLUMNS: ${columns.map((c) => `${c.name} (${c.type}, meaning: ${c.role}${c.isCurrency ? ", monetary" : ""}, ${c.unique} distinct values${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`,
   );
+  detail.push(
+    "MEASUREMENT RULES: sum or average only columns whose meaning is 'measure'. Year columns are time dimensions — use earliest/latest year, records per year and most common year. Never total or average identifiers. Use currency symbols only for columns marked monetary.",
+  );
+
   detail.push(`DATA QUALITY: ${duplicateRows} duplicate rows, ${totalMissing} missing cells.`);
   if (metricCols.length) {
     detail.push(
