@@ -498,7 +498,21 @@ export function calculateDatasetAnswer(question: string, dataset: DatasetProfile
   if (asksSum) {
     const metric = detectMetricColumn(question, dataset);
     if (!metric) return null;
+    // Years and identifiers are not quantities — a "total of release years" is meaningless.
+    const metricRole = dataset.columns.find((c) => c.name === metric.column)?.role;
+    if (metricRole === "year" || metricRole === "identifier") {
+      return unavailable(
+        `${metric.column} is a ${metricRole === "year" ? "year" : "identifier"} column, so a total for it would not mean anything.`,
+        `Checked what ${metric.column} measures before adding it up.`,
+        [
+          metricRole === "year"
+            ? `Ask instead for the earliest or latest ${metric.column}, the most common ${metric.column}, or how many records fall in each year.`
+            : `Ask instead how many distinct ${metric.column} values the dataset contains.`,
+        ],
+      );
+    }
     const values = numericValues(filteredRows, metric.column, question, filters);
+
     if (!values.length) {
       return unavailable(
         `I could not calculate the total ${metric.column} because there are no usable numeric values after applying the filters.`,
@@ -871,8 +885,9 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
       );
     } else if (isIdLike(n)) {
       lines.push(
-        `${n} (identifier column — never sum or average it): ${counts0(vals)} distinct values across ${vals.length} records.`,
+        `${n} (identifier column — never sum or average it): ${new Set(vals).size} distinct values across ${vals.length} records.`,
       );
+
     } else if (roleOf(n) === "percentage") {
       lines.push(
         `${n} (percentage column): average ${r2(avg)}%, median ${r2(median)}%, lowest ${r2(min)}%, highest ${r2(max)}%. Do not sum percentages.`,
@@ -905,15 +920,15 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
     const lastPoint = trend[trend.length - 1]!;
     const change =
       firstPoint.value === 0 ? null : ((lastPoint.value - firstPoint.value) / Math.abs(firstPoint.value)) * 100;
+    const seriesLabel = trendLabel || "Trend";
+    lines.push(`${seriesLabel}: ${trend.map((t) => `${t.name}=${Math.round(t.value)}`).join(", ")}.`);
     lines.push(
-      `Monthly ${revenueCol}: ${trend.map((t) => `${t.name}=${Math.round(t.value)}`).join(", ")}.`,
-    );
-    lines.push(
-      `Trend for ${revenueCol}: ${firstPoint.name} = ${Math.round(firstPoint.value)} vs ${lastPoint.name} = ${Math.round(lastPoint.value)}${
+      `Change across ${seriesLabel}: ${firstPoint.name} = ${Math.round(firstPoint.value)} vs ${lastPoint.name} = ${Math.round(lastPoint.value)}${
         change === null ? "" : ` (${change >= 0 ? "up" : "down"} ${r2(Math.abs(change))}%)`
       }.`,
     );
   }
+
   if (bars.length) {
     const totalBars = bars.reduce((s, b) => s + b.value, 0);
     lines.push(
@@ -963,8 +978,12 @@ export function profileCsv(csvText: string, name = "Uploaded dataset"): DatasetP
   const detail: string[] = [];
   detail.push(`DATASET: "${name}" — ${rows.length} rows, ${headers.length} columns.`);
   detail.push(
-    `COLUMNS: ${columns.map((c) => `${c.name} (${c.type}, ${c.unique} distinct values${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`,
+    `COLUMNS: ${columns.map((c) => `${c.name} (${c.type}, meaning: ${c.role}${c.isCurrency ? ", monetary" : ""}, ${c.unique} distinct values${c.missing ? `, ${c.missing} missing` : ""})`).join("; ")}.`,
   );
+  detail.push(
+    "MEASUREMENT RULES: sum or average only columns whose meaning is 'measure'. Year columns are time dimensions — use earliest/latest year, records per year and most common year. Never total or average identifiers. Use currency symbols only for columns marked monetary.",
+  );
+
   detail.push(`DATA QUALITY: ${duplicateRows} duplicate rows, ${totalMissing} missing cells.`);
   if (metricCols.length) {
     detail.push(
